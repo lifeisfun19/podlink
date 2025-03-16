@@ -1,28 +1,91 @@
-"use client";
+"use client"; // For Next.js App Router
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { auth, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "../lib/firebase"; // Import Firebase methods
 
 export default function WelcomePage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  const handleLogin = () => {
-    if (email && password) {
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email || !password) {
+      setError("Please enter both email and password.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Invalid credentials.");
+        return;
+      }
+
+      // Store the JWT token (in localStorage or cookies)
+      localStorage.setItem("token", data.token);
+
+      // Redirect to Home
       router.push("/home");
-    } else {
-      alert("Please enter both email and password.");
+    } catch (err) {
+      setError("Something went wrong. Try again.");
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    const provider = new GoogleAuthProvider();
+
+    try {
+      // Trigger Google sign-in popup
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      console.log('Google User:', user);
+
+      // Store JWT token or additional user data here
+      setMessage("✅ Signup successful! Redirecting...");
+      setTimeout(() => router.push("/home"), 2000); // Redirect to home after successful login
+
+    } catch (error) {
+      console.error("Error during Google Sign-Up:", error);
+      setMessage(`❌ Error: ${error.message}`);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError("Please enter your email to reset the password.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setMessage("✅ A password reset link has been sent to your email.");
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      setMessage(`❌ Error: ${error.message}`);
     }
   };
 
   return (
     <div style={styles.container}>
-      {/* Welcome to PodLink - Top Header */}
       <h1 style={styles.banner}>Welcome to PodLink</h1>
 
-      {/* Login Section */}
       <div style={styles.loginBox}>
         <h2 style={styles.title}>Let's Get Started! 🚀</h2>
+
+        {error && <p style={{ color: "red" }}>{error}</p>}
+        {message && <p style={{ color: "green" }}>{message}</p>}
 
         <input
           type="email"
@@ -51,14 +114,17 @@ export default function WelcomePage() {
           </a>
         </p>
 
-        {/* Google Sign-Up Button */}
-        <button style={styles.googleButton}>
+        <button style={styles.googleButton} onClick={handleGoogleSignUp}>
           <img
             src="https://www.vhv.rs/dpng/d/0-6167_google-app-icon-png-transparent-png.png"
             alt="Google Icon"
             style={styles.googleIconSmall}
           />
           Sign up with Google
+        </button>
+
+        <button style={styles.resetButton} onClick={handleResetPassword}>
+          Reset Password
         </button>
       </div>
     </div>
@@ -92,7 +158,7 @@ const styles = {
     transform: "translateX(-50%)",
   },
   loginBox: {
-    background: "rgba(255, 255, 255, 0.7)", // Translucent white
+    background: "rgba(255, 255, 255, 0.7)",
     padding: "2rem",
     borderRadius: "20px",
     boxShadow: "5px 5px 20px rgba(0, 0, 0, 0.2)",
@@ -156,5 +222,17 @@ const styles = {
     height: "18px",
     marginRight: "10px",
   },
+  resetButton: {
+    width: "100%",
+    padding: "12px",
+    backgroundColor: "#00BFFF",
+    color: "#fff",
+    fontSize: "1.2rem",
+    fontWeight: "bold",
+    border: "none",
+    borderRadius: "20px",
+    cursor: "pointer",
+    transition: "0.3s",
+    marginTop: "10px",
+  },
 };
-
