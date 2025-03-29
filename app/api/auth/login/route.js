@@ -1,8 +1,8 @@
 import { connectDB } from "../../../lib/mongodb"; // Ensure correct import
-import User from "../../../models/user";
+import User from "../../../models/User";
+
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
 
 export async function POST(req) {
   try {
@@ -45,8 +45,9 @@ export async function POST(req) {
 
     console.log("JWT_SECRET:", process.env.JWT_SECRET); // Debugging
 
+    // Generate JWT Token with user details (including interests and location)
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id, email: user.email, interests: user.interests, location: user.location },
       process.env.JWT_SECRET || "fallback_secret",
       { expiresIn: "7d" }
     );
@@ -54,7 +55,11 @@ export async function POST(req) {
     console.log("✅ Login Successful:", email);
 
     return new Response(
-      JSON.stringify({ message: "Login successful!", token }),
+      JSON.stringify({ 
+        message: "Login successful!", 
+        token, 
+        user: { name: user.name, email: user.email, interests: user.interests, location: user.location }
+      }),
       { status: 200 }
     );
   } catch (error) {

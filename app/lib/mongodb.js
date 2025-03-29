@@ -1,26 +1,29 @@
 import mongoose from "mongoose";
 
-let isConnected = false; // Avoid multiple connections
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+  throw new Error("Please define the MONGO_URI environment variable in .env file");
+}
+
+// Global cache to prevent multiple connections
+let cached = global.mongoose || { conn: null, promise: null };
 
 export async function connectDB() {
-  if (isConnected) {
-    console.log("⚡ Using existing database connection");
-    return;
+  if (cached.conn) {
+    return cached.conn;
   }
 
-  try {
-    const uri = process.env.MONGO_URI; // Make sure MONGO_URI is correctly set
-    if (!uri) throw new Error("MONGO_URI is missing in environment variables");
-
-    const connection = await mongoose.connect(uri, {
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-    });
-
-    isConnected = connection.connections[0].readyState === 1;
-    console.log("✅ MongoDB Connected Successfully");
-  } catch (error) {
-    console.error("❌ MongoDB Connection Error:", error.message);
-    throw new Error(error.message);
+    }).then((mongoose) => mongoose);
   }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
+
+// Assign cached connection to global for hot reload support
+global.mongoose = cached;

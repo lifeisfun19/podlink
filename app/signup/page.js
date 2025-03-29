@@ -101,7 +101,7 @@ export default function Signup() {
 
           <p style={styles.text}>
             Already have an account?{" "}
-            <a href="/login" style={styles.link}>
+            <a href="/welcome" style={styles.link}>
               Log In
             </a>
           </p>

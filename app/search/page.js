@@ -1,15 +1,37 @@
 "use client";
+
 import { useState } from "react";
+import dynamic from "next/dynamic";
+
+// Dynamically import Map component to avoid SSR issues
+const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
 export default function SearchPage() {
   const [activeTab, setActiveTab] = useState("online");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    try {
+      const res = await fetch(
+        activeTab === "online"
+          ? `/api/online-users?query=${encodeURIComponent(searchQuery)}`
+          : `/api/study-spots?query=${encodeURIComponent(searchQuery)}`
+      );
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error("Error fetching search results:", error);
+      setSearchResults([]);
+    }
+  };
 
   return (
     <div
       style={{
         height: "100vh",
-        backgroundImage:
-          "url('https://www.theshepherd.org/GetImage.ashx?Guid=dae0f137-6c5d-43c4-97ee-502e49e6f1e7&w=960&mode=max')",
+        backgroundImage: "url('https://www.theshepherd.org/GetImage.ashx?Guid=dae0f137-6c5d-43c4-97ee-502e49e6f1e7&w=960&mode=max')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         display: "flex",
@@ -35,9 +57,7 @@ export default function SearchPage() {
         </h1>
 
         {/* Tab Selection */}
-        <div
-          style={{ display: "flex", justifyContent: "space-around", marginBottom: "20px" }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "20px" }}>
           <button
             onClick={() => setActiveTab("online")}
             style={{
@@ -77,9 +97,9 @@ export default function SearchPage() {
         {/* Search Input */}
         <input
           type="text"
-          placeholder={
-            activeTab === "online" ? "Search for online peers..." : "Enter location..."
-          }
+          placeholder={activeTab === "online" ? "Search for online peers..." : "Enter location..."}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           style={{
             width: "100%",
             padding: "12px",
@@ -108,10 +128,26 @@ export default function SearchPage() {
             transition: "0.3s",
             fontWeight: "bold",
           }}
-          onClick={() => alert("Searching...")}
+          onClick={handleSearch}
         >
           🔍 Search
         </button>
+
+        {/* Search Results */}
+        <div style={{ marginTop: "15px", textAlign: "left", color: "#fff" }}>
+          {searchResults.length > 0 ? (
+            <ul>
+              {searchResults.map((result, index) => (
+                <li key={index}>{result.name}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No results found.</p>
+          )}
+        </div>
+
+        {/* Map Component */}
+        {activeTab === "offline" && <Map searchQuery={searchQuery} />}
       </div>
     </div>
   );

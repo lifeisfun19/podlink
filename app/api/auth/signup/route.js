@@ -1,5 +1,5 @@
 import { connectDB } from "../../../lib/mongodb"; // Ensure correct import
-import User from "../../../models/user";
+import User from "../../../models/User";
 import bcrypt from "bcryptjs";
 
 export async function POST(req) {
@@ -12,10 +12,10 @@ export async function POST(req) {
     const body = await req.json();
     console.log("📥 Received Data:", body);
 
-    const { name, email, password } = body;
+    const { name, email, password, interests, location } = body;
 
     // Check for missing fields
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !interests || !location) {
       console.log("❌ Missing required fields");
       return new Response(
         JSON.stringify({ message: "Missing required fields" }),
@@ -37,13 +37,20 @@ export async function POST(req) {
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log("🔒 Hashed Password:", hashedPassword);
 
-    // Create new user
-    const newUser = new User({ name, email, password: hashedPassword });
+    // Create new user with matching fields
+    const newUser = new User({ 
+      name, 
+      email, 
+      password: hashedPassword,
+      interests, // ⬅️ Added for matching
+      location  // ⬅️ Added for location-based matching
+    });
+
     await newUser.save();
 
     console.log("✅ New user created:", newUser);
     return new Response(
-      JSON.stringify({ message: "User signup successful!", data: { name, email } }),
+      JSON.stringify({ message: "User signup successful!", data: { name, email, interests, location } }),
       { status: 201 }
     );
   } catch (error) {

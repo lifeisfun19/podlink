@@ -25,7 +25,9 @@ export default function ForgotPasswordPage() {
       setMessage("Password reset email sent! Please check your inbox.");
       setTimeout(() => router.push("/login"), 2000); // Redirect to login page after 2 seconds
     } catch (error) {
-      setError("Error sending reset email: " + error.message);
+      console.error("Firebase Reset Email Error:", error);
+      setError(`❌ Reset failed: ${error.code} - ${error.message}`);
+
     }
   };
 
