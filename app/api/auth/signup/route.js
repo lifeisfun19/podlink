@@ -1,63 +1,77 @@
-import { connectDB } from "../../../lib/mongodb"; // Ensure correct import
-import User from "../../../models/User";
+import connectDB from "@/lib/mongodb.js";
+import User from "@/models/user.js";
 import bcrypt from "bcryptjs";
+import { verifyFirebaseIdToken } from "@/lib/firebase-admin.js";
+
+export const runtime = "nodejs";
 
 export async function POST(req) {
   try {
-    // ✅ Connect to MongoDB FIRST
-    await connectDB();
-    console.log("✅ Connected to MongoDB");
-
-    // Read and log incoming request data
     const body = await req.json();
-    console.log("📥 Received Data:", body);
+    const { name, email, password, interests = [], firebaseUid: bodyUid } = body;
 
-    const { name, email, password, interests, location } = body;
-
-    // Check for missing fields
-    if (!name || !email || !password || !interests || !location) {
-      console.log("❌ Missing required fields");
+    if (!name || !email || (!password && !bodyUid)) {
       return new Response(
-        JSON.stringify({ message: "Missing required fields" }),
-        { status: 400 }
+          JSON.stringify({ message: "Name, email, and either a password or Firebase UID are required." }),
+          { status: 400 }
       );
     }
 
-    // Check if user already exists
+    await connectDB();
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log("⚠️ User already exists:", existingUser.email);
-      return new Response(
-        JSON.stringify({ message: "User already exists" }),
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({ message: "User already exists." }), { status: 409 });
     }
 
-    // Hash password before saving
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log("🔒 Hashed Password:", hashedPassword);
+    let firebaseUid = bodyUid;
+    if (!firebaseUid) {
+      const authHeader = req.headers.get("authorization");
+      const token = authHeader?.split("Bearer ")[1];
+      if (token) {
+        try {
+          const decoded = await verifyFirebaseIdToken(token);
+          firebaseUid = decoded.uid;
+        } catch (err) {
+          console.warn("Firebase token verification failed:", err.message);
+        }
+      }
+    }
 
-    // Create new user with matching fields
-    const newUser = new User({ 
-      name, 
-      email, 
+    if (!firebaseUid) {
+      firebaseUid = `manual-${Date.now()}`;
+    }
+
+    let hashedPassword = null;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    const newUser = new User({
+      name,
+      email,
       password: hashedPassword,
-      interests, // ⬅️ Added for matching
-      location  // ⬅️ Added for location-based matching
+      firebaseUid,
+      interests,
+      location: { type: "Point", coordinates: [0, 0] },
+      avatar: "",
+      bio: "",
+      courses: [],
+      badges: [],
+      points: 0,
     });
 
     await newUser.save();
 
-    console.log("✅ New user created:", newUser);
     return new Response(
-      JSON.stringify({ message: "User signup successful!", data: { name, email, interests, location } }),
-      { status: 201 }
+        JSON.stringify({
+          message: "Signup successful",
+          user: { name: newUser.name, email: newUser.email, firebaseUid: newUser.firebaseUid },
+        }),
+        { status: 200 }
     );
   } catch (error) {
-    console.error("❌ Signup Error:", error);
-    return new Response(
-      JSON.stringify({ message: "Signup failed", error: error.message }),
-      { status: 500 }
-    );
+    console.error("Signup error:", error);
+    return new Response(JSON.stringify({ message: "Signup failed", error: error.message }), { status: 500 });
   }
 }

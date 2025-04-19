@@ -1,63 +1,93 @@
 "use client";
 
-export default function HistoryPage() {
-  return (
-    <div style={containerStyle}>
-      <div style={contentStyle}>
-        <h1 style={titleStyle}>Your History</h1>
-        <p style={subtitleStyle}>See your past study sessions and connections.</p>
+import { useEffect, useState } from "react";
 
-        {/* Sample History Entries */}
-        <div style={historyContainer}>
-          <HistoryCard
-            title="Group Study - AI Basics"
-            date="March 5, 2025"
-            location="Library Room 302"
-          />
-          <HistoryCard
-            title="Math Revision Meetup"
-            date="February 28, 2025"
-            location="Café Study Spot"
-          />
-          <HistoryCard
-            title="Project Collaboration - PodLink"
-            date="February 20, 2025"
-            location="Online Session"
-          />
+export default function HistoryPage() {
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    // Static seed sessions for frontend display only
+    const seedHistory = [
+      {
+        partner: "Vivek Sagar Arora",
+        date: "2025-04-06T10:00:00Z",
+        mode: "online",
+        location: "Online",
+        link: "https://meet.google.com/abc-defg-hij",
+      },
+      {
+        partner: "Zyan Munjal",
+        date: "2025-04-109T14:30:00Z",
+        mode: "offline",
+        location: "Library, Block A",
+        link: null,
+      },
+
+    ];
+
+    setHistory(seedHistory);
+  }, []);
+
+  return (
+      <div style={containerStyle}>
+        <div style={contentStyle}>
+          <h1 style={titleStyle}>Your History</h1>
+          <p style={subtitleStyle}>
+            See your past study sessions and connections.
+          </p>
+
+          <div style={historyContainer}>
+            {history.map((session, index) => (
+                <HistoryCard
+                    key={index}
+                    title={`Study Session with ${session.partner}`}
+                    date={new Date(session.date).toLocaleDateString()}
+                    location={session.mode === "offline" ? session.location : "Online"}
+                    link={session.link}
+                />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
   );
 }
 
 // History Card Component
-function HistoryCard({ title, date, location }) {
+function HistoryCard({ title, date, location, link }) {
   return (
-    <div style={cardStyle}>
-      <h3 style={cardTitle}>{title}</h3>
-      <p style={cardDetail}>📅 {date}</p>
-      <p style={cardDetail}>📍 {location}</p>
-    </div>
+      <div style={cardStyle}>
+        <h3 style={cardTitle}>{title}</h3>
+        <p style={cardDetail}>📅 {date}</p>
+        <p style={cardDetail}>📍 {location}</p>
+        {link && (
+            <a href={link} target="_blank" rel="noopener noreferrer" style={linkStyle}>
+              🔗 Join Link
+            </a>
+        )}
+      </div>
   );
 }
 
 // Styles
 const containerStyle = {
   height: "100vh",
-  backgroundImage: "url('https://getwallpapers.com/wallpaper/full/5/1/3/891707-wallpaper-of-study-2518x1666-cell-phone.jpg')",
+  backgroundImage:
+      "url('https://getwallpapers.com/wallpaper/full/5/1/3/891707-wallpaper-of-study-2518x1666-cell-phone.jpg')",
   backgroundSize: "cover",
   backgroundPosition: "center",
   display: "flex",
-  alignItems: "flex-start", // Moves content lower
-  justifyContent: "flex-start", // Aligns content to the left
-  padding: "100px 50px", // Space from top and left
+  alignItems: "flex-start",
+  justifyContent: "flex-start",
+  padding: "100px 50px",
+  overflowY: "auto",
 };
 
 const contentStyle = {
-  backgroundColor: "rgba(255, 255, 255, 0.8)", // Light background for contrast
+  backgroundColor: "rgba(255, 255, 255, 0.85)",
   padding: "20px",
   borderRadius: "10px",
-  maxWidth: "400px",
+  maxWidth: "450px",
+  width: "100%",
 };
 
 const titleStyle = {
@@ -91,4 +121,12 @@ const cardTitle = {
 const cardDetail = {
   fontSize: "1rem",
   margin: "2px 0",
+};
+
+const linkStyle = {
+  fontSize: "1rem",
+  color: "#1a73e8",
+  textDecoration: "underline",
+  marginTop: "5px",
+  display: "inline-block",
 };

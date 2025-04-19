@@ -1,0 +1,6 @@
+/* public/leaflet.css */
+/*noinspection ALL*/
+.leaflet-container {
+    height: 100%;
+    width: 100%;
+}

@@ -1,7 +1,17 @@
-"use client"; // For Next.js App Router
-import { useState } from "react";
-import { useRouter } from "next/navigation"; // 'next/router' if using Pages Router
-import { auth, GoogleAuthProvider, signInWithPopup } from "../lib/firebase"; // Adjust the path based on your setup
+// File: app/signup/page.js
+
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  auth,
+  createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+} from "@/lib/firebase";
+import { updateProfile } from "firebase/auth";
+import Image from "next/image";
 
 export default function Signup() {
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
@@ -12,91 +22,146 @@ export default function Signup() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handle regular email/password sign-up
-  const handleSubmit = async (e) => {
+  const handleEmailSignup = async (e) => {
     e.preventDefault();
-
     try {
-      const res = await fetch("/api/auth/signup", {
+      const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+      );
+      const firebaseUser = userCredential.user;
+
+      await updateProfile(firebaseUser, { displayName: formData.name });
+
+      const token = await firebaseUser.getIdToken();
+
+      const res = await fetch("/api/user/sync", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          firebaseUid: firebaseUser.uid,
+          avatar: firebaseUser.photoURL || "",
+          bio: "",
+          interests: [],
+          courses: [],
+          location: { type: "Point", coordinates: [0, 0] },
+        }),
       });
 
       const data = await res.json();
+
       if (res.ok) {
         setMessage("✅ Signup successful! Redirecting...");
-        setTimeout(() => router.push("/welcome"), 2000); // Redirect to welcome
+        setTimeout(() => router.push("/profile"), 2000);
       } else {
-        setMessage(`❌ Error: ${data.message}`);
+        setMessage(`❌ ${data?.error || "Backend error"}`);
+        console.error("❌ Sync Error:", data);
       }
     } catch (error) {
-      console.error("Signup failed:", error);
-      setMessage("❌ Signup failed. Try again.");
+      console.error("🔥 Signup failed:", error);
+      setMessage("❌ Signup failed. Please try again.");
     }
   };
 
-  // Handle Google sign-in
-  const handleGoogleSignIn = async () => {
+  const handleGoogleSignup = async () => {
     const provider = new GoogleAuthProvider();
-
     try {
-      // Trigger Google sign-in popup
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      console.log("Google User:", user);
+      const token = await user.getIdToken();
 
-      // You can save additional user info to your database here (optional)
-      // For example: createUserInDatabase(user);
+      const res = await fetch("/api/user/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: user.displayName || "Unnamed",
+          email: user.email,
+          firebaseUid: user.uid,
+          avatar: user.photoURL || "",
+          bio: "",
+          interests: [],
+          courses: [],
+          location: { type: "Point", coordinates: [0, 0] },
+        }),
+      });
 
-      setMessage("✅ Google Sign-In successful! Redirecting...");
-      setTimeout(() => router.push("/welcome"), 2000); // Redirect to welcome page
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage("✅ Google signup successful! Redirecting...");
+        setTimeout(() => router.push("/profile"), 2000);
+      } else {
+        setMessage(`❌ ${data?.error || "Backend error"}`);
+        console.error("❌ Sync Error:", data);
+      }
     } catch (error) {
-      console.error("Error during Google Sign-In:", error);
-      setMessage(`❌ Error: ${error.message}`);
+      console.error("❌ Google signup failed:", error);
+      setMessage("❌ Google signup failed. Please try again.");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.banner}>Welcome to PodLink</h1>
+      <div style={styles.container}>
+        <h1 style={styles.banner}></h1>
 
-      <div style={styles.signupBox}>
-        <h2 style={styles.title}>Create Your Account</h2>
+        <div style={styles.signupBox}>
+          <h2 style={styles.title}>Create Your Account</h2>
+          {message && <p style={styles.message}>{message}</p>}
 
-        {message && <p style={{ color: "red" }}>{message}</p>}
+          <form onSubmit={handleEmailSignup}>
+            <input
+                type="text"
+                name="name"
+                placeholder="Name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+                style={styles.input}
+            />
+            <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                style={styles.input}
+            />
+            <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                style={styles.input}
+            />
+            <button type="submit" style={styles.signupButton}>
+              Sign Up
+            </button>
+          </form>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            name="name"
-            placeholder="Name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            style={styles.input}
-          />
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            style={styles.input}
-          />
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleChange}
-            required
-            style={styles.input}
-          />
+          <p style={styles.or}>— or —</p>
 
-          <button type="submit" style={styles.signupButton}>
-            Sign Up
+          <button onClick={handleGoogleSignup} style={styles.googleButton}>
+            <Image
+                src="/images/google.png"
+                alt="Google"
+                width={24}
+                height={24}
+                style={styles.googleIcon}
+            />
+
+            Sign up with Google
           </button>
 
           <p style={styles.text}>
@@ -105,19 +170,8 @@ export default function Signup() {
               Log In
             </a>
           </p>
-
-          {/* Google Sign-In Button */}
-          <button type="button" onClick={handleGoogleSignIn} style={styles.googleButton}>
-            <img
-              src="https://www.vhv.rs/dpng/d/0-6167_google-app-icon-png-transparent-png.png"
-              alt="Google Icon"
-              style={styles.googleIconSmall}
-            />
-            Sign up with Google
-          </button>
-        </form>
+        </div>
       </div>
-    </div>
   );
 }
 
@@ -127,35 +181,36 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    height: "100vh",
+    minHeight: "100vh", // FIXED background height
     backgroundImage:
-      "url('https://getwallpapers.com/wallpaper/full/a/b/4/891455-wallpaper-of-study-2560x1440-for-hd-1080p.jpg')",
+        "url('https://getwallpapers.com/wallpaper/full/a/b/4/891455-wallpaper-of-study-2560x1440-for-hd-1080p.jpg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
+    backgroundAttachment: "fixed",
     fontFamily: "'Comic Sans MS', cursive, sans-serif",
     position: "relative",
   },
   banner: {
-    fontSize: "4rem",
+    fontSize: "3.5rem",
     fontWeight: "bold",
     color: "white",
     textAlign: "center",
     fontFamily: "'Algerian', sans-serif",
     width: "100%",
     position: "absolute",
-    top: "10px",
+    top: "30px",
     left: "50%",
     transform: "translateX(-50%)",
   },
   signupBox: {
-    background: "rgba(255, 255, 255, 0.7)",
+    background: "rgba(255, 255, 255, 0.85)",
     padding: "2rem",
     borderRadius: "20px",
-    boxShadow: "5px 5px 20px rgba(0, 0, 0, 0.2)",
+    boxShadow: "5px 5px 25px rgba(0, 0, 0, 0.3)",
     textAlign: "center",
-    width: "80%",
-    maxWidth: "400px",
-    marginTop: "120px",
+    width: "85%",
+    maxWidth: "420px",
+    marginTop: "160px",
   },
   title: {
     fontSize: "2rem",
@@ -182,8 +237,35 @@ const styles = {
     border: "none",
     borderRadius: "20px",
     cursor: "pointer",
-    transition: "0.3s",
+    transition: "0.3s ease",
     marginTop: "10px",
+  },
+  googleButton: {
+    width: "100%",
+    padding: "12px",
+    backgroundColor: "white", // updated
+    color: "black",           // updated
+    fontSize: "1.2rem",
+    fontWeight: "bold",
+    border: "none",
+    borderRadius: "20px",
+    cursor: "pointer",
+    transition: "0.3s ease",
+    marginTop: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+  },
+  googleIcon: {
+    width: "24px",
+    height: "24px",
+  },
+  or: {
+    margin: "20px 0 10px",
+    fontSize: "1rem",
+    fontWeight: "bold",
+    color: "#666",
   },
   text: {
     marginTop: "10px",
@@ -195,21 +277,9 @@ const styles = {
     textDecoration: "none",
     fontWeight: "bold",
   },
-  googleButton: {
-    width: "100%",
-    padding: "12px",
-    backgroundColor: "#fff",
-    border: "2px solid #ccc",
-    borderRadius: "20px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    marginTop: "10px",
-  },
-  googleIconSmall: {
-    width: "18px",
-    height: "18px",
-    marginRight: "10px",
+  message: {
+    color: "red",
+    marginBottom: "10px",
+    fontWeight: "bold",
   },
 };

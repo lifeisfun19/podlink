@@ -1,154 +1,350 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { toast } from 'react-toastify';
+import { auth } from '@/lib/firebase.js';
+import { onAuthStateChanged } from 'firebase/auth';
 
-// Dynamically import Map component to avoid SSR issues
-const Map = dynamic(() => import("@/components/Map"), { ssr: false });
+const Map = dynamic(() => import('@/components/map/offlineMap.js'), { ssr: false });
 
 export default function SearchPage() {
-  const [activeTab, setActiveTab] = useState("online");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
+    const [activeTab, setActiveTab] = useState('online');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [requestedUserIds, setRequestedUserIds] = useState([]);
+    const [incomingRequests, setIncomingRequests] = useState([]);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    try {
-      const res = await fetch(
-        activeTab === "online"
-          ? `/api/online-users?query=${encodeURIComponent(searchQuery)}`
-          : `/api/study-spots?query=${encodeURIComponent(searchQuery)}`
-      );
-      const data = await res.json();
-      setSearchResults(data);
-    } catch (error) {
-      console.error("Error fetching search results:", error);
-      setSearchResults([]);
-    }
-  };
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+                try {
+                    const token = await firebaseUser.getIdToken();
+                    const location = { type: 'Point', coordinates: [0, 0] };
 
-  return (
-    <div
-      style={{
-        height: "100vh",
-        backgroundImage: "url('https://www.theshepherd.org/GetImage.ashx?Guid=dae0f137-6c5d-43c4-97ee-502e49e6f1e7&w=960&mode=max')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      <div
-        style={{
-          background: "rgba(255, 255, 255, 0.2)",
-          padding: "30px",
-          borderRadius: "15px",
-          boxShadow: "0px 10px 30px rgba(0, 0, 0, 0.3)",
-          width: "400px",
-          textAlign: "center",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255, 255, 255, 0.3)",
-        }}
-      >
-        <h1 style={{ fontSize: "2rem", marginBottom: "15px", color: "#fff" }}>
-          Find Study Buddies
-        </h1>
+                    navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                            location.coordinates = [
+                                position.coords.longitude,
+                                position.coords.latitude,
+                            ];
+                            await syncUser(firebaseUser, token, location);
+                        },
+                        async () => {
+                            await syncUser(firebaseUser, token, location);
+                        }
+                    );
 
-        {/* Tab Selection */}
-        <div style={{ display: "flex", justifyContent: "space-around", marginBottom: "20px" }}>
-          <button
-            onClick={() => setActiveTab("online")}
+                    const res = await fetch('/api/request/incoming', {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        setIncomingRequests(data || []);
+                    }
+                } catch (err) {
+                    console.error('❌ Failed to sync user:', err.message);
+                }
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    const syncUser = async (firebaseUser, token, location) => {
+        const payload = {
+            name: firebaseUser.displayName || '',
+            email: firebaseUser.email || '',
+            avatar: firebaseUser.photoURL || '',
+            location: location || { type: 'Point', coordinates: [0, 0] },
+            interests: [],
+            courses: [],
+            bio: '',
+        };
+
+        await fetch('/api/user/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(payload),
+        });
+    };
+
+    const handleSearch = async () => {
+        if (activeTab === 'offline') {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        const res = await fetch('/api/nearby-users', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                            }),
+                        });
+
+                        const data = await res.json();
+                        setSearchResults(data);
+                    } catch {
+                        toast.error('📡 Failed to fetch nearby users.');
+                        setSearchResults([]);
+                    }
+                },
+                () => {
+                    toast.warn('📍 Location access denied. Enable it for offline search.');
+                }
+            );
+        } else {
+            if (!searchQuery.trim()) return;
+            try {
+                const res = await fetch(
+                    `/api/match/online-matching?query=${encodeURIComponent(searchQuery)}`
+                );
+                const data = await res.json();
+                setSearchResults(data);
+            } catch {
+                toast.error('❌ Failed to fetch online search results.');
+                setSearchResults([]);
+            }
+        }
+    };
+
+    const handleRequest = async (user) => {
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) {
+                toast.error("⚠️ You're not logged in.");
+                return;
+            }
+
+            const token = await currentUser.getIdToken();
+
+            const res = await fetch('/api/request/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ toUserId: user._id }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                toast.success('✅ Request sent successfully.');
+                setRequestedUserIds((prev) => [...prev, user._id]);
+            } else {
+                toast.error(`❌ ${data.error || 'Failed to send request.'}`);
+            }
+        } catch {
+            toast.error('⚠️ Server error. Please try again.');
+        }
+    };
+
+    const handleAccept = async (requestId) => {
+        try {
+            const res = await fetch('/api/match/accept-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId }),
+            });
+
+            const data = await res.json();
+            if (res.ok && data.meetLink) {
+                toast.success('✅ Request accepted! Redirecting to Google Meet...');
+                window.location.href = data.meetLink;
+            } else {
+                toast.error('❌ Could not accept request.');
+            }
+        } catch {
+            toast.error('⚠️ Acceptance failed.');
+        }
+    };
+
+    return (
+        <div
             style={{
-              flex: 1,
-              padding: "12px",
-              fontSize: "1rem",
-              cursor: "pointer",
-              background: activeTab === "online" ? "#00c6ff" : "rgba(255,255,255,0.3)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              transition: "0.3s",
-              fontWeight: "bold",
+                height: '100dvh',
+                backgroundImage:
+                    "url('https://www.theshepherd.org/GetImage.ashx?Guid=dae0f137-6c5d-43c4-97ee-502e49e6f1e7&w=960&mode=max')",
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                backdropFilter: 'blur(10px)',
+                overflow: 'hidden',
             }}
-          >
-            💻 Online
-          </button>
-          <button
-            onClick={() => setActiveTab("offline")}
-            style={{
-              flex: 1,
-              padding: "12px",
-              fontSize: "1rem",
-              cursor: "pointer",
-              background: activeTab === "offline" ? "#ff758c" : "rgba(255,255,255,0.3)",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              transition: "0.3s",
-              fontWeight: "bold",
-            }}
-          >
-            📍 Offline
-          </button>
-        </div>
-
-        {/* Search Input */}
-        <input
-          type="text"
-          placeholder={activeTab === "online" ? "Search for online peers..." : "Enter location..."}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "12px",
-            fontSize: "1rem",
-            border: "1px solid rgba(255, 255, 255, 0.5)",
-            borderRadius: "8px",
-            marginBottom: "10px",
-            background: "rgba(255,255,255,0.2)",
-            color: "#fff",
-            outline: "none",
-            textAlign: "center",
-          }}
-        />
-
-        {/* Search Button */}
-        <button
-          style={{
-            width: "100%",
-            padding: "12px",
-            fontSize: "1rem",
-            background: "#06beb6",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            transition: "0.3s",
-            fontWeight: "bold",
-          }}
-          onClick={handleSearch}
         >
-          🔍 Search
-        </button>
+            <div
+                style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    padding: '30px',
+                    borderRadius: '15px',
+                    boxShadow: '0px 10px 30px rgba(0, 0, 0, 0.3)',
+                    width: '400px',
+                    textAlign: 'center',
+                    backdropFilter: 'blur(20px)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    overflowY: 'auto',
+                    maxHeight: '95vh',
+                }}
+            >
+                <h1 style={{ fontSize: '2rem', marginBottom: '15px', color: '#fff' }}>
+                    Find Study Buddies
+                </h1>
 
-        {/* Search Results */}
-        <div style={{ marginTop: "15px", textAlign: "left", color: "#fff" }}>
-          {searchResults.length > 0 ? (
-            <ul>
-              {searchResults.map((result, index) => (
-                <li key={index}>{result.name}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>No results found.</p>
-          )}
+                <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: '20px' }}>
+                    {['online', 'offline'].map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => setActiveTab(tab)}
+                            style={{
+                                flex: 1,
+                                padding: '12px',
+                                fontSize: '1rem',
+                                cursor: 'pointer',
+                                background:
+                                    activeTab === tab
+                                        ? (tab === 'online' ? '#00c6ff' : '#ff758c')
+                                        : 'rgba(255,255,255,0.3)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: 'bold',
+                            }}
+                        >
+                            {tab === 'online' ? '💻 Online' : '📍 Offline'}
+                        </button>
+                    ))}
+                </div>
+
+                <input
+                    type="text"
+                    placeholder={activeTab === 'online' ? 'Enter course name...' : 'Enter city or area...'}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={activeTab === 'offline'}
+                    style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '1rem',
+                        border: '1px solid rgba(255, 255, 255, 0.5)',
+                        borderRadius: '8px',
+                        marginBottom: '10px',
+                        background: 'rgba(255,255,255,0.2)',
+                        color: '#fff',
+                        outline: 'none',
+                        textAlign: 'center',
+                    }}
+                />
+
+                <button
+                    onClick={handleSearch}
+                    style={{
+                        width: '100%',
+                        padding: '12px',
+                        fontSize: '1rem',
+                        background: '#06beb6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        marginBottom: '15px',
+                    }}
+                >
+                    🔍 Search
+                </button>
+
+                <div style={{ color: '#fff', textAlign: 'left' }}>
+                    {searchResults.length > 0 ? (
+                        <ul>
+                            {searchResults.map((user, index) => (
+                                <li key={index} style={{ marginBottom: '15px' }}>
+                                    👤 {user.name || 'Unnamed User'}
+                                    {requestedUserIds.includes(user._id) ? (
+                                        <div
+                                            style={{
+                                                marginTop: '10px',
+                                                backgroundColor: '#d1e7dd',
+                                                padding: '10px',
+                                                borderRadius: '10px',
+                                                color: '#0f5132',
+                                                fontWeight: 'bold',
+                                            }}
+                                        >
+                                            ✅ Request Sent!
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleRequest(user)}
+                                            style={{
+                                                background: '#007bff',
+                                                color: '#fff',
+                                                border: 'none',
+                                                padding: '5px 10px',
+                                                borderRadius: '5px',
+                                                cursor: 'pointer',
+                                                marginLeft: '10px',
+                                            }}
+                                        >
+                                            Request to Connect
+                                        </button>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p style={{ marginTop: '10px' }}>🔍 No results found.</p>
+                    )}
+                </div>
+
+                {activeTab === 'offline' && (
+                    <div
+                        style={{
+                            marginTop: '20px',
+                            borderRadius: '10px',
+                            overflow: 'hidden',
+                            height: '250px',
+                        }}
+                    >
+                        <Map searchQuery={searchQuery} />
+                    </div>
+                )}
+
+                {incomingRequests.length > 0 && (
+                    <div style={{ marginTop: '25px', color: '#fff' }}>
+                        <h3>Incoming Requests</h3>
+                        <ul>
+                            {incomingRequests.map((req) => (
+                                <li key={req._id} style={{ marginBottom: '10px' }}>
+                                    📩 {req.fromUser?.name || 'Anonymous'} wants to study with you.
+                                    <button
+                                        onClick={() => handleAccept(req._id)}
+                                        style={{
+                                            background: '#28a745',
+                                            color: '#fff',
+                                            border: 'none',
+                                            padding: '5px 10px',
+                                            borderRadius: '5px',
+                                            cursor: 'pointer',
+                                            marginLeft: '10px',
+                                        }}
+                                    >
+                                        Accept & Join Meet
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
         </div>
-
-        {/* Map Component */}
-        {activeTab === "offline" && <Map searchQuery={searchQuery} />}
-      </div>
-    </div>
-  );
+    );
 }

@@ -1,72 +1,84 @@
-import { connectDB } from "../../../lib/mongodb"; // Ensure correct import
-import User from "../../../models/User";
-
+// login route - for email/password users only
+import connectDB from "../../../lib/mongodb.js";
+import User from "../../../models/user.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 export async function POST(req) {
-  try {
-    const body = await req.json();
-    console.log("📥 Received Data:", body);
+    try {
+        const { email, password } = await req.json();
 
-    const { email, password } = body;
+        if (!email || !password) {
+            return new Response(
+                JSON.stringify({ message: "Email and password are required." }),
+                { status: 400 }
+            );
+        }
 
-    // Check if email or password is missing
-    if (!email || !password) {
-      return new Response(
-        JSON.stringify({ message: "Missing required fields" }),
-        { status: 400 }
-      );
+        await connectDB();
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return new Response(
+                JSON.stringify({ message: "No account found with this email." }),
+                { status: 401 }
+            );
+        }
+
+        console.log("🧪 Found User:", user);
+        console.log("🧪 User Password Exists:", !!user.password);
+
+        // If user was created using Google Sign-In
+        if (!user.password) {
+            return new Response(
+                JSON.stringify({
+                    message:
+                        "This account was created using Google Sign-In. Please use the 'Sign in with Google' button.",
+                }),
+                { status: 403 }
+            );
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return new Response(
+                JSON.stringify({ message: "Incorrect password. Please try again." }),
+                { status: 401 }
+            );
+        }
+
+        const token = jwt.sign(
+            {
+                userId: user._id,
+                email: user.email,
+                interests: user.interests,
+                location: user.location,
+            },
+            process.env.JWT_SECRET || "fallback_secret",
+            { expiresIn: "7d" }
+        );
+
+        return new Response(
+            JSON.stringify({
+                message: "Login successful.",
+                token,
+                user: {
+                    name: user.name,
+                    email: user.email,
+                    interests: user.interests,
+                    location: user.location,
+                    avatar: user.avatar,
+                },
+            }),
+            { status: 200 }
+        );
+    } catch (error) {
+        console.error("❌ Login Error:", error);
+        return new Response(
+            JSON.stringify({ message: "Login failed.", error: error.message }),
+            { status: 500 }
+        );
     }
-
-    // ✅ Connect to MongoDB
-    await connectDB();
-    console.log("✅ Connected to MongoDB");
-
-    // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.log("❌ User not found:", email);
-      return new Response(
-        JSON.stringify({ message: "Invalid email or password" }),
-        { status: 401 }
-      );
-    }
-
-    // Verify password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      console.log("❌ Incorrect password for:", email);
-      return new Response(
-        JSON.stringify({ message: "Invalid email or password" }),
-        { status: 401 }
-      );
-    }
-
-    console.log("JWT_SECRET:", process.env.JWT_SECRET); // Debugging
-
-    // Generate JWT Token with user details (including interests and location)
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, interests: user.interests, location: user.location },
-      process.env.JWT_SECRET || "fallback_secret",
-      { expiresIn: "7d" }
-    );
-    
-    console.log("✅ Login Successful:", email);
-
-    return new Response(
-      JSON.stringify({ 
-        message: "Login successful!", 
-        token, 
-        user: { name: user.name, email: user.email, interests: user.interests, location: user.location }
-      }),
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("❌ Login Error:", error);
-    return new Response(
-      JSON.stringify({ message: "Login failed", error: error.message }),
-      { status: 500 }
-    );
-  }
 }

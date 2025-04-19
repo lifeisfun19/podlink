@@ -1,42 +1,50 @@
-import { connectDB } from "@/lib/mongodb";
-import User from "@/models/User";
-import { authenticate } from "@/lib/auth"; // Import authentication function
+import db from '@/lib/mongodb.js';
+import User from '@/models/user.js';
+import { authenticate } from '@/lib/auth.js';
 
 export async function GET(req) {
-  await connectDB(); // Ensure database is connected
+  await db();
 
-  // Authenticate user using JWT token
-  const auth = authenticate(req);
-  if (auth.error) {
-    return new Response(JSON.stringify({ error: auth.error }), { status: 401 });
+  const user = await authenticate(req);
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
   }
 
-  const userId = auth.userId; // Extract user ID from token
+  const currentUser = await User.findById(user._id);
 
-  try {
-    // Find the current user
-    const currentUser = await User.findById(userId);
-    if (!currentUser) {
-      return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
-    }
-
-    // Define search criteria
-    const searchCriteria = {
-      _id: { $ne: userId }, // Exclude the current user
-      interests: { $in: currentUser.interests }, // Match at least one interest
-    };
-
-    // If user has a location, match users in the same location
-    if (currentUser.location) {
-      searchCriteria.location = currentUser.location;
-    }
-
-    // Find matching users
-    const matches = await User.find(searchCriteria).select("-password"); // Exclude password field
-
-    return new Response(JSON.stringify(matches), { status: 200 });
-  } catch (error) {
-    console.error("❌ Error fetching matches:", error);
-    return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+  // If currentUser is null or does not exist, respond with 404
+  if (!currentUser) {
+    return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
   }
+
+  const others = await User.find({
+    _id: { $ne: user._id },
+    courses: { $in: currentUser.courses },
+  });
+
+  return new Response(JSON.stringify(others), { status: 200 });
+}
+
+export async function POST(req) {
+  await db();
+
+  const user = await authenticate(req);
+
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  const { partnerId } = await req.json();
+
+  const session = {
+    date: new Date(),
+    partner: partnerId,
+    mode: 'online',
+    link: `https://meet.google.com/lookup/${Math.random().toString(36).substring(7)}`
+  };
+
+  await User.findByIdAndUpdate(user._id, { $push: { sessions: session } });
+
+  return new Response(JSON.stringify({ message: 'Session created' }), { status: 200 });
 }

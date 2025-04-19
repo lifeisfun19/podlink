@@ -5,4 +5,9 @@ html, body {
   padding: 0;
   overflow-x: hidden;
 }
+/* Optional toast customization */
+.react-hot-toast {
+  font-size: 14px;
+  font-family: 'Segoe UI', sans-serif;
+}
 

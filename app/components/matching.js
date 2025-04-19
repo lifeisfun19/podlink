@@ -1,3 +1,5 @@
+// noinspection DuplicatedCode
+
 "use client";
 import { useState, useEffect } from "react";
 

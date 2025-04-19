@@ -1,29 +1,37 @@
-import mongoose from "mongoose";
+// lib/mongodb.js
+import mongoose from 'mongoose';
 
-const MONGO_URI = process.env.MONGO_URI;
-
-if (!MONGO_URI) {
-  throw new Error("Please define the MONGO_URI environment variable in .env file");
-}
-
-// Global cache to prevent multiple connections
+// Global cache to prevent multiple connections in development
 let cached = global.mongoose || { conn: null, promise: null };
 
-export async function connectDB() {
-  if (cached.conn) {
+const connectDB = async () => {
+    if (cached.conn) return cached.conn;
+
+    const MONGODB_URI = process.env.MONGODB_URI;
+    if (!MONGODB_URI) {
+        throw new Error("❌ Please define the MONGODB_URI environment variable in your .env file");
+    }
+
+    if (!cached.promise) {
+        cached.promise = mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 30000, // 30 seconds timeout
+            socketTimeoutMS: 30000,          // 30 seconds socket timeout
+        })
+            .then((mongooseInstance) => {
+                console.log("✅ Connected to MongoDB Atlas Cluster");
+                return mongooseInstance;
+            })
+            .catch((err) => {
+                console.error("🔥 MongoDB connection error:", err);
+                throw new Error('MongoDB connection failed: ' + err.message);
+            });
+    }
+
+    cached.conn = await cached.promise;
+    global.mongoose = cached;
     return cached.conn;
-  }
+};
 
-  if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    }).then((mongoose) => mongoose);
-  }
-
-  cached.conn = await cached.promise;
-  return cached.conn;
-}
-
-// Assign cached connection to global for hot reload support
-global.mongoose = cached;
+export default connectDB;

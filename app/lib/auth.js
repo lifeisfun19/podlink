@@ -1,55 +1,58 @@
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import dotenv from "dotenv";
+// File: lib/auth.js
 
-// Load environment variables
-dotenv.config();
+import { verifyFirebaseIdToken } from "@/lib/firebase-admin.js";
+import User from "@/models/user.js";
+import connectDB from "@/lib/mongodb.js";
 
-// Ensure JWT_SECRET is properly loaded
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error("❌ ERROR: JWT_SECRET is not defined in .env!");
-  process.exit(1); // Stop the server if secret is missing
-}
-
-// 🔹 Hash user password before saving to DB
-export async function hashPassword(password) {
-  const salt = await bcrypt.genSalt(10);
-  return bcrypt.hash(password, salt);
-}
-
-// 🔹 Compare entered password with stored hash
-export async function comparePassword(enteredPassword, storedHash) {
-  return bcrypt.compare(enteredPassword, storedHash);
-}
-
-// 🔹 Generate JWT token after successful login
-export function generateToken(user) {
-  console.log("🔑 Signing JWT with secret:", JWT_SECRET);
-  return jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "7d" });
-}
-
-// 🔹 Middleware to authenticate protected routes
-export function authenticate(req) {
+export async function authenticate(req) {
   try {
-    const authHeader = req.headers.get("authorization"); // Ensure lowercase
-    console.log("🔍 Received Authorization Header:", authHeader);
+    const authHeader = req.headers.get("authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.log("❌ No valid token provided");
-      return { error: "Unauthorized. No token provided." };
+      throw new Error("No authorization token found");
     }
 
-    const token = authHeader.split(" ")[1]; // Extract token
-    console.log("🔑 Extracted Token:", token);
-    console.log("🔑 Expected JWT_SECRET for verification:", JWT_SECRET);
+    const token = authHeader.split(" ")[1];
+    const decodedToken = await verifyFirebaseIdToken(token);
 
-    const decoded = jwt.verify(token, JWT_SECRET); // Verify token
-    console.log("✅ Token Verified! User ID:", decoded.id);
+    await connectDB(); // Ensure DB is connected
 
-    return { userId: decoded.id }; // Return user ID
+    let user = await User.findOne({ firebaseUid: decodedToken.uid });
+
+    if (!user) {
+      user = await User.findOne({ email: decodedToken.email });
+      if (user) {
+        user.firebaseUid = decodedToken.uid;
+        await user.save();
+        console.log("🔄 Linked Firebase UID to existing email user:", user.email);
+      }
+    }
+
+    if (!user) {
+      user = await User.create({
+        firebaseUid: decodedToken.uid,
+        email: decodedToken.email,
+        name: decodedToken.name || "",
+        avatar: decodedToken.picture || "",
+        bio: "",
+        location: {
+          type: "Point",
+          coordinates: [0, 0],
+        },
+        interests: [],
+        courses: [],
+        matches: [],
+        sessions: [],
+        badges: ["🎉 Welcome"],
+        points: 10,
+        createdAt: new Date(),
+      });
+      console.log("🎉 New user created:", user.email);
+    }
+
+    return user;
   } catch (error) {
-    console.error("❌ Token verification failed:", error.message);
-    return { error: "Invalid or expired token." };
+    console.error("❌ Firebase Token verification failed:", error.message);
+    throw new Error("Authentication failed. Please check your credentials.");
   }
 }

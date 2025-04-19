@@ -1,9 +1,14 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function Home() {
-    return (
-      <div style={{ textAlign: "center", marginTop: "50px" }}>
-        <h1>Welcome to PodLink</h1>
-        <p>Connect with students and study together.</p>
-      </div>
-    );
-  }
-  
+    const router = useRouter();
+
+    useEffect(() => {
+        router.replace('/welcome');
+    }, [router]);
+
+    return null;
+}
