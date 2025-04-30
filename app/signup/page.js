@@ -1,5 +1,3 @@
-// File: app/signup/page.js
-
 "use client";
 
 import React, { useState } from "react";
@@ -10,7 +8,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "@/lib/firebase";
-import { updateProfile } from "firebase/auth";
+import { updateProfile } from "firebase/auth"; // ✅ Correct import
 import Image from "next/image";
 
 export default function Signup() {
@@ -24,6 +22,12 @@ export default function Signup() {
 
   const handleEmailSignup = async (e) => {
     e.preventDefault();
+
+    if (!formData.password || formData.password.length < 6) {
+      setMessage("❌ Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(
           auth,
@@ -65,7 +69,7 @@ export default function Signup() {
       }
     } catch (error) {
       console.error("🔥 Signup failed:", error);
-      setMessage("❌ Signup failed. Please try again.");
+      setMessage(`❌ ${error.message}`);
     }
   };
 
@@ -139,7 +143,7 @@ export default function Signup() {
             <input
                 type="password"
                 name="password"
-                placeholder="Password"
+                placeholder="Password (min 6 chars)"
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -160,7 +164,6 @@ export default function Signup() {
                 height={24}
                 style={styles.googleIcon}
             />
-
             Sign up with Google
           </button>
 
@@ -174,6 +177,8 @@ export default function Signup() {
       </div>
   );
 }
+
+// 👇 keep your styles object as-is
 
 const styles = {
   container: {

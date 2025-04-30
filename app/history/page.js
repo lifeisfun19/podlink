@@ -17,10 +17,10 @@ export default function HistoryPage() {
       },
       {
         partner: "Zyan Munjal",
-        date: "2025-04-109T14:30:00Z",
-        mode: "offline",
-        location: "Library, Block A",
-        link: null,
+        date: "2025-03-06T10:00:00Z",
+        mode: "online",
+        location: "Online",
+        link: "https://meet.google.com/abc-defg-hij",m
       },
 
     ];

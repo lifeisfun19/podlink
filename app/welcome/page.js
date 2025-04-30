@@ -47,10 +47,23 @@ export default function WelcomePage() {
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      console.log('Google User:', user);
+      const idToken = await user.getIdToken();
 
-      setMessage('✅ Google Sign-In successful! Redirecting...');
-      setTimeout(() => router.push('/home'), 2000);
+      const response = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+
+      const resultData = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', resultData.token);
+        setMessage('✅ Google Sign-In successful! Redirecting...');
+        setTimeout(() => router.push('/home'), 2000);
+      } else {
+        setError(resultData.message || 'Google Sign-In failed.');
+      }
     } catch (error) {
       console.error('Error during Google Sign-In:', error);
       setError(`❌ Error: ${error.message}`);

@@ -1,3 +1,5 @@
+// File: app/api/auth/firebase-login/route.js
+
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb.js";
 import User from "@/models/user.js";
@@ -53,23 +55,18 @@ export async function POST(req) {
             }
 
         } else if (signupMethod === 'email' && password) {
-            // Hash password for email sign-up
-            const hashedPassword = await bcrypt.hash(password, 10);
+            // Handle email sign up with password validation
+            user = await User.findOne({ email });
 
-            // Create a new user in the database
-            user = await User.create({
-                email,
-                password: hashedPassword, // Store the hashed password
-                location: { type: "Point", coordinates: [0, 0] },
-                interests: [],
-                courses: [],
-                badges: [],
-                points: 0,
-                matches: [],
-                sessions: [],
-                participatedStudyHalls: [],
-                hostedStudyHalls: [],
-            });
+            if (!user) {
+                return NextResponse.json({ error: "User does not exist." }, { status: 404 });
+            }
+
+            const passwordMatch = await bcrypt.compare(password, user.password);
+            if (!passwordMatch) {
+                return NextResponse.json({ error: "Invalid password." }, { status: 401 });
+            }
+
         } else {
             return NextResponse.json({ error: "Invalid signup method." }, { status: 400 });
         }

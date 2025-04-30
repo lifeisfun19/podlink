@@ -70,8 +70,8 @@ export default function RewardsPage() {
 
           <div style={lockedContainer}>
             <h2 style={lockedTitle}>🔒 Locked Badges</h2>
-            <BadgeCard title="Beginner Learner" status="Locked - Complete your first session!" />
-            <BadgeCard title="Study Streak" status="Locked - Match 3 days in a row" />
+            <BadgeCard title="First Match" status="Locked - Complete your first session!" />
+            <BadgeCard title="Map Explorer" status="Locked - Match 3 days in a row" />
             <BadgeCard title="Collaboration Star" status="Locked - Join 5+ sessions" />
           </div>
         </div>

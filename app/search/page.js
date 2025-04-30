@@ -146,23 +146,27 @@ export default function SearchPage() {
         }
     };
 
-    const handleAccept = async (requestId) => {
+    const handleResponse = async (requestId, response) => {
         try {
-            const res = await fetch('/api/match/accept-request', {
+            const res = await fetch('/api/request/respond', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId }),
+                body: JSON.stringify({ requestId, response }),
             });
 
             const data = await res.json();
-            if (res.ok && data.meetLink) {
-                toast.success('✅ Request accepted! Redirecting to Google Meet...');
-                window.location.href = data.meetLink;
+            if (res.ok) {
+                if (response === 'accept' && data.meetLink) {
+                    toast.success('✅ Request accepted! Redirecting to Google Meet...');
+                    window.location.href = data.meetLink;
+                } else if (response === 'reject') {
+                    toast.success('❌ Request rejected.');
+                }
             } else {
-                toast.error('❌ Could not accept request.');
+                toast.error('❌ Could not process response.');
             }
         } catch {
-            toast.error('⚠️ Acceptance failed.');
+            toast.error('⚠️ Response failed.');
         }
     };
 
@@ -326,7 +330,7 @@ export default function SearchPage() {
                                 <li key={req._id} style={{ marginBottom: '10px' }}>
                                     📩 {req.fromUser?.name || 'Anonymous'} wants to study with you.
                                     <button
-                                        onClick={() => handleAccept(req._id)}
+                                        onClick={() => handleResponse(req._id, 'accept')}
                                         style={{
                                             background: '#28a745',
                                             color: '#fff',
@@ -338,6 +342,20 @@ export default function SearchPage() {
                                         }}
                                     >
                                         Accept & Join Meet
+                                    </button>
+                                    <button
+                                        onClick={() => handleResponse(req._id, 'reject')}
+                                        style={{
+                                            background: '#dc3545',
+                                            color: '#fff',
+                                            border: 'none',
+                                            padding: '5px 10px',
+                                            borderRadius: '5px',
+                                            cursor: 'pointer',
+                                            marginLeft: '10px',
+                                        }}
+                                    >
+                                        Reject
                                     </button>
                                 </li>
                             ))}
