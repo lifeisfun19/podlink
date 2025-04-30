@@ -1,4 +1,3 @@
-
 import connectDB from "../../../lib/mongodb.js";
 import User from "../../../models/user.js";
 import bcrypt from "bcryptjs";
@@ -26,10 +25,7 @@ export async function POST(req) {
             );
         }
 
-        console.log("🧪 Found User:", user);
-        console.log("🧪 User Password Exists:", !!user.password);
-
-        // If user was created using Google Sign-In
+        // If the user does not have a password (Google sign-up)
         if (!user.password) {
             return new Response(
                 JSON.stringify({
