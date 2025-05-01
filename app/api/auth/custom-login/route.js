@@ -55,6 +55,7 @@ export async function POST(req) {
             process.env.JWT_SECRET || "fallback_secret",
             { expiresIn: "7d" }
         );
+        console.log("Sending POST request to /api/auth/login");
 
         return new Response(
             JSON.stringify({

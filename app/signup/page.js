@@ -1,20 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  auth,
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
-} from "@/lib/firebase";
-import { updateProfile } from "firebase/auth"; // ✅ Correct import
+import { auth, GoogleAuthProvider, signInWithPopup } from "@/lib/firebase";
 import Image from "next/image";
 
-export default function Signup() {
+export default function SignupPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState("");
-  const router = useRouter();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -29,32 +23,14 @@ export default function Signup() {
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          formData.email,
-          formData.password
-      );
-      const firebaseUser = userCredential.user;
-
-      await updateProfile(firebaseUser, { displayName: formData.name });
-
-      const token = await firebaseUser.getIdToken();
-
-      const res = await fetch("/api/user/sync", {
+      const res = await fetch("/api/auth/custom-signup", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          firebaseUid: firebaseUser.uid,
-          avatar: firebaseUser.photoURL || "",
-          bio: "",
+          password: formData.password,
           interests: [],
-          courses: [],
-          location: { type: "Point", coordinates: [0, 0] },
         }),
       });
 
@@ -64,11 +40,10 @@ export default function Signup() {
         setMessage("✅ Signup successful! Redirecting...");
         setTimeout(() => router.push("/profile"), 2000);
       } else {
-        setMessage(`❌ ${data?.error || "Backend error"}`);
-        console.error("❌ Sync Error:", data);
+        setMessage(`❌ ${data?.message || "Something went wrong."}`);
       }
     } catch (error) {
-      console.error("🔥 Signup failed:", error);
+      console.error("Signup error:", error);
       setMessage(`❌ ${error.message}`);
     }
   };
@@ -91,36 +66,30 @@ export default function Signup() {
           email: user.email,
           firebaseUid: user.uid,
           avatar: user.photoURL || "",
-          bio: "",
           interests: [],
           courses: [],
           location: { type: "Point", coordinates: [0, 0] },
         }),
       });
 
-      const data = await res.json();
-
       if (res.ok) {
         setMessage("✅ Google signup successful! Redirecting...");
         setTimeout(() => router.push("/profile"), 2000);
       } else {
-        setMessage(`❌ ${data?.error || "Backend error"}`);
-        console.error("❌ Sync Error:", data);
+        const data = await res.json();
+        setMessage(`❌ ${data?.message || "Sync failed."}`);
       }
     } catch (error) {
-      console.error("❌ Google signup failed:", error);
-      setMessage("❌ Google signup failed. Please try again.");
+      console.error("Google signup error:", error);
+      setMessage("❌ Google signup failed. Try again.");
     }
   };
 
   return (
       <div style={styles.container}>
-        <h1 style={styles.banner}></h1>
-
         <div style={styles.signupBox}>
-          <h2 style={styles.title}>Create Your Account</h2>
+          <h2 style={styles.title}>Sign Up</h2>
           {message && <p style={styles.message}>{message}</p>}
-
           <form onSubmit={handleEmailSignup}>
             <input
                 type="text"
@@ -143,7 +112,7 @@ export default function Signup() {
             <input
                 type="password"
                 name="password"
-                placeholder="Password (min 6 chars)"
+                placeholder="Password"
                 value={formData.password}
                 onChange={handleChange}
                 required
@@ -157,13 +126,7 @@ export default function Signup() {
           <p style={styles.or}>— or —</p>
 
           <button onClick={handleGoogleSignup} style={styles.googleButton}>
-            <Image
-                src="/images/google.png"
-                alt="Google"
-                width={24}
-                height={24}
-                style={styles.googleIcon}
-            />
+            <Image src="/images/google.png" alt="Google" width={24} height={24} />
             Sign up with Google
           </button>
 
@@ -178,113 +141,77 @@ export default function Signup() {
   );
 }
 
-// 👇 keep your styles object as-is
-
 const styles = {
   container: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "100vh", // FIXED background height
+    minHeight: "100vh",
     backgroundImage:
         "url('https://getwallpapers.com/wallpaper/full/a/b/4/891455-wallpaper-of-study-2560x1440-for-hd-1080p.jpg')",
     backgroundSize: "cover",
     backgroundPosition: "center",
-    backgroundAttachment: "fixed",
-    fontFamily: "'Comic Sans MS', cursive, sans-serif",
-    position: "relative",
-  },
-  banner: {
-    fontSize: "3.5rem",
-    fontWeight: "bold",
-    color: "white",
-    textAlign: "center",
-    fontFamily: "'Algerian', sans-serif",
-    width: "100%",
-    position: "absolute",
-    top: "30px",
-    left: "50%",
-    transform: "translateX(-50%)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontFamily: "Comic Sans MS, sans-serif",
   },
   signupBox: {
-    background: "rgba(255, 255, 255, 0.85)",
+    backgroundColor: "rgba(255,255,255,0.95)",
     padding: "2rem",
     borderRadius: "20px",
-    boxShadow: "5px 5px 25px rgba(0, 0, 0, 0.3)",
+    maxWidth: "400px",
+    width: "90%",
+    boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
     textAlign: "center",
-    width: "85%",
-    maxWidth: "420px",
-    marginTop: "160px",
   },
   title: {
-    fontSize: "2rem",
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: "1.8rem",
     marginBottom: "1rem",
   },
   input: {
     width: "100%",
-    padding: "12px",
+    padding: "10px",
     margin: "10px 0",
-    borderRadius: "20px",
-    border: "2px solid #ccc",
+    borderRadius: "15px",
+    border: "1px solid #ccc",
     fontSize: "1rem",
-    textAlign: "center",
   },
   signupButton: {
     width: "100%",
     padding: "12px",
-    backgroundColor: "#ff6b6b",
-    color: "#fff",
-    fontSize: "1.2rem",
-    fontWeight: "bold",
-    border: "none",
-    borderRadius: "20px",
-    cursor: "pointer",
-    transition: "0.3s ease",
     marginTop: "10px",
+    backgroundColor: "#28a745",
+    color: "white",
+    borderRadius: "15px",
+    border: "none",
+    fontSize: "1.1rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+  or: {
+    margin: "15px 0",
+    fontWeight: "bold",
   },
   googleButton: {
     width: "100%",
     padding: "12px",
-    backgroundColor: "white", // updated
-    color: "black",           // updated
-    fontSize: "1.2rem",
-    fontWeight: "bold",
-    border: "none",
-    borderRadius: "20px",
-    cursor: "pointer",
-    transition: "0.3s ease",
-    marginTop: "10px",
+    backgroundColor: "white",
+    border: "1px solid #ccc",
+    borderRadius: "15px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: "10px",
-  },
-  googleIcon: {
-    width: "24px",
-    height: "24px",
-  },
-  or: {
-    margin: "20px 0 10px",
-    fontSize: "1rem",
-    fontWeight: "bold",
-    color: "#666",
+    cursor: "pointer",
   },
   text: {
-    marginTop: "10px",
-    fontSize: "1rem",
-    color: "#555",
+    marginTop: "1rem",
   },
   link: {
-    color: "#2575fc",
+    color: "#007bff",
     textDecoration: "none",
     fontWeight: "bold",
   },
   message: {
     color: "red",
     marginBottom: "10px",
-    fontWeight: "bold",
   },
 };

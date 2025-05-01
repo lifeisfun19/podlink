@@ -22,11 +22,12 @@ export default function WelcomePage() {
     }
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch('/api/auth/custom-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      console.log("Sending POST request to /api/auth/login");
 
       const data = await res.json();
 

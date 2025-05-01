@@ -1,4 +1,3 @@
-// File: app/api/auth/firebase-login/route.js
 
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb.js";
