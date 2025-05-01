@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../../../lib/mongodb.js";
-import User from "../../../../models/user.js";
+import  connectDB from '@/lib/mongodb.js';
+import User from '@/models/user.js';
 import jwt from "jsonwebtoken";
-import admin from "../../../../lib/firebaseAdmin"; // See note below
+import admin from '@/lib/firebase-admin.js'; // See note below
 
 export async function POST(req) {
     try {

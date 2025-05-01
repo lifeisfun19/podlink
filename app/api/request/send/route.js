@@ -1,16 +1,14 @@
 // /app/api/request/send/route.js
 import { NextResponse } from 'next/server';
-import { connectToDB } from '@/lib/mongodb';
+import  connectDB from '@/lib/mongodb.js';
 import { authenticate } from '@/lib/auth';
-import { ObjectId } from 'mongodb';
-
 export async function POST(req) {
     try {
         const token = await authenticate(req);
         if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
         const { receiverId, mode, course, location, meetLink } = await req.json();
-        const { db } = await connectToDB();
+        const { db } = await connectDB();
 
         const newRequest = {
             senderId: token.uid,
