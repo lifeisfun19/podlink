@@ -1,12 +1,12 @@
 // app/api/match/online-matching/route.js
 
 import { NextResponse } from 'next/server';
-import connectToDB from '@/lib/mongodb.js';
+import connectDB from '@/lib/mongodb.js';
 import User from '@/models/user.js';
 
 export async function GET(request) {
     try {
-        await connectToDB();
+        await connectDB();
 
         const { searchParams } = new URL(request.url);
         const course = searchParams.get('query');

@@ -37,7 +37,7 @@ export default function Signup() {
 
             if (res.ok) {
                 setMessage("✅ Signup successful! Redirecting...");
-                setTimeout(() => router.push("/welcome"), 2000); // or profile page
+                setTimeout(() => router.push("/profile"), 2000); // or profile page
             } else {
                 setMessage(`❌ ${data?.message || "Signup failed."}`);
                 console.error("❌ Server Error:", data);

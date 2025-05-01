@@ -1,5 +1,5 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../auth/[...nextauth]/route';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '../../auth/[...nextauth]/route';  // Adjust the path as needed
 import { createGoogleMeetEvent } from '@/lib/calendar';
 import connectDB from '@/lib/mongodb';
 import Session from '@/models/Sessions';

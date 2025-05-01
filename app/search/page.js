@@ -35,7 +35,7 @@ export default function SearchPage() {
                         }
                     );
 
-                    const res = await fetch('/api/request/incoming', {
+                    const res = await fetch('/api/request/respond', {
                         headers: {
                             Authorization: `Bearer ${token}`,
                         },
@@ -122,6 +122,13 @@ export default function SearchPage() {
                 return;
             }
 
+            if (requestedUserIds.includes(user._id)) {
+                toast.info('⚠️ Request already sent to this user.');
+                return;
+            }
+
+            setRequestedUserIds((prev) => [...prev, user._id + '_pending']);
+
             const token = await currentUser.getIdToken();
 
             const res = await fetch('/api/request/send', {
@@ -130,10 +137,14 @@ export default function SearchPage() {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ toUserId: user._id }),
+                body: JSON.stringify({ receiverId: user._id }),
             });
 
             const data = await res.json();
+
+            setRequestedUserIds((prev) =>
+                prev.filter((id) => id !== user._id + '_pending')
+            );
 
             if (res.ok) {
                 toast.success('✅ Request sent successfully.');
@@ -142,6 +153,9 @@ export default function SearchPage() {
                 toast.error(`❌ ${data.error || 'Failed to send request.'}`);
             }
         } catch {
+            setRequestedUserIds((prev) =>
+                prev.filter((id) => !id.endsWith('_pending'))
+            );
             toast.error('⚠️ Server error. Please try again.');
         }
     };
@@ -285,6 +299,21 @@ export default function SearchPage() {
                                         >
                                             ✅ Request Sent!
                                         </div>
+                                    ) : requestedUserIds.includes(user._id + '_pending') ? (
+                                        <button
+                                            disabled
+                                            style={{
+                                                background: '#6c757d',
+                                                color: '#fff',
+                                                border: 'none',
+                                                padding: '5px 10px',
+                                                borderRadius: '5px',
+                                                marginLeft: '10px',
+                                                cursor: 'not-allowed',
+                                            }}
+                                        >
+                                            ⏳ Sending...
+                                        </button>
                                     ) : (
                                         <button
                                             onClick={() => handleRequest(user)}
